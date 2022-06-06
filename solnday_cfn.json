@@ -1,0 +1,1486 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "AWS Solution Day CloudFormation Stack!",
+    "Parameters": {
+        "BucketName": {
+            "Type": "String",
+            "Description": "The bucket name where the PythonKafkaSink.zip & lambda-functions.zip files (case sensitive) are present.",
+            "Default": "...Replace with your S3 bucket name."
+        },
+        "KeyName": {
+            "Description": "Input EC2 key pair name for Amazon EC2 client.",
+            "Type": "AWS::EC2::KeyPair::KeyName"
+        },
+        "SourceIPAddr": {
+            "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,3})",
+            "Default": "0.0.0.0/0",
+            "Description": "Input public IP address of your local machine to connect with EC2 client. Example IP address: 70.125.240.130/32 ",
+            "Type": "String"
+        },
+        "ImageId": {
+            "Description": "Image ID for client EC2 instance. Do not change this parameter.",
+            "Type": "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>",
+            "Default": "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+        },
+    },
+    "Resources": {
+        "SolnVPC": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": "172.31.0.0/16",
+                "EnableDnsHostnames": true,
+                "EnableDnsSupport": true,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        }
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "f4e01756-4108-465c-abdf-fafc19ecaadc"
+                }
+            }
+        },
+        "publicSubnet1": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "SolnVPC"
+                },
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        0,
+                        {
+                            "Fn::GetAZs": ""
+                        }
+                    ]
+                },
+                "CidrBlock": "172.31.0.0/24",
+                "MapPublicIpOnLaunch": true,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join": [
+                                "-",
+                                [
+                                    {
+                                        "Ref": "AWS::StackName"
+                                    },
+                                    "public-subnet"
+                                ]
+                            ]
+                        }
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "531001a0-2ff0-4eca-abfd-5688f8a7deeb"
+                }
+            }
+        },
+        "privateSubnet1": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "SolnVPC"
+                },
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        0,
+                        {
+                            "Fn::GetAZs": ""
+                        }
+                    ]
+                },
+                "CidrBlock": "172.31.3.0/24",
+                "MapPublicIpOnLaunch": false,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join": [
+                                "-",
+                                [
+                                    {
+                                        "Ref": "AWS::StackName"
+                                    },
+                                    "private-subnet-a"
+                                ]
+                            ]
+                        }
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "e0cec8bb-e934-4e24-bfa0-9f1a07ece8f5"
+                }
+            }
+        },
+        "privateSubnet2": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "SolnVPC"
+                },
+                "AvailabilityZone": {
+                    "Fn::Select": [
+                        1,
+                        {
+                            "Fn::GetAZs": ""
+                        }
+                    ]
+                },
+                "CidrBlock": "172.31.2.0/24",
+                "MapPublicIpOnLaunch": false,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join": [
+                                "-",
+                                [
+                                    {
+                                        "Ref": "AWS::StackName"
+                                    },
+                                    "private-subnet-b"
+                                ]
+                            ]
+                        }
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "d2808420-18a4-499f-b6a3-961f2f36afee"
+                }
+            }
+        },
+        "internetGateway": {
+            "Type": "AWS::EC2::InternetGateway",
+            "Properties": {
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join": [
+                                "-",
+                                [
+                                    {
+                                        "Ref": "AWS::StackName"
+                                    },
+                                    "gateway"
+                                ]
+                            ]
+                        }
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "fc9d1c20-4f96-4e6b-bf84-577cd96d1c4f"
+                }
+            }
+        },
+        "gatewayToInternet": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "SolnVPC"
+                },
+                "InternetGatewayId": {
+                    "Ref": "internetGateway"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "32e02de3-3c0a-42c0-af61-632ce9f11c1a"
+                }
+            }
+        },
+        "publicRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "SolnVPC"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "75119e8a-4fc1-4982-a175-021e814b631e"
+                }
+            }
+        },
+        "publicRoute": {
+            "Type": "AWS::EC2::Route",
+            "DependsOn": "gatewayToInternet",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "publicRouteTable"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "GatewayId": {
+                    "Ref": "internetGateway"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "71efd6b6-9934-465d-93d9-d7a3e3402a31"
+                }
+            }
+        },
+        "publicSubnet1RouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "publicSubnet1"
+                },
+                "RouteTableId": {
+                    "Ref": "publicRouteTable"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "24f852c6-5846-472c-9bec-f8e3c956b30e"
+                }
+            }
+        },
+        "natGateway": {
+            "Type": "AWS::EC2::NatGateway",
+            "DependsOn": "natPublicIP",
+            "Properties": {
+                "AllocationId": {
+                    "Fn::GetAtt": [
+                        "natPublicIP",
+                        "AllocationId"
+                    ]
+                },
+                "SubnetId": {
+                    "Ref": "publicSubnet1"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "18a35f22-58f5-45ba-880e-e362b8f3439d"
+                }
+            }
+        },
+        "natPublicIP": {
+            "Type": "AWS::EC2::EIP",
+            "DependsOn": "SolnVPC",
+            "Properties": {
+                "Domain": "vpc"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "9498fb84-0c65-49ad-b082-79d8109c5b40"
+                }
+            }
+        },
+        "privateRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+                "VpcId": {
+                    "Ref": "SolnVPC"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "0eec2148-ba38-4329-bc6f-ae2c20102e01"
+                }
+            }
+        },
+        "privateRoute": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "RouteTableId": {
+                    "Ref": "privateRouteTable"
+                },
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "NatGatewayId": {
+                    "Ref": "natGateway"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "e43a5ddf-7a3b-4f7e-9720-50498093fe61"
+                }
+            }
+        },
+        "privateSubnet1RouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "privateSubnet1"
+                },
+                "RouteTableId": {
+                    "Ref": "privateRouteTable"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "38f0f150-cf9c-4d23-86ab-7a8b1715ebfc"
+                }
+            }
+        },
+        "privateSubnet2RouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+                "SubnetId": {
+                    "Ref": "privateSubnet2"
+                },
+                "RouteTableId": {
+                    "Ref": "privateRouteTable"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "c1eea9ef-310f-4188-9dcf-bddb45cf66a6"
+                }
+            }
+        },
+        "kfpLambdaServiceExecutionRole": {
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": [
+                                "sts:AssumeRole"
+                            ],
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "soln_policy",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:CreateLogGroup",
+                                        "logs:CreateLogStream",
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Resource": "arn:aws:logs:*:*:*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ec2:CreateNetworkInterface",
+                                        "ec2:DescribeNetworkInterfaces",
+                                        "ec2:DescribeVpcs",
+                                        "ec2:DeleteNetworkInterface",
+                                        "ec2:DescribeSubnets",
+                                        "ec2:DescribeSecurityGroups",
+                                        "kafka:DescribeCluster",
+                                        "kafka:GetBootstrapBrokers",
+                                        "kafka:CreateConfiguration",
+                                        "kafka:DeleteConfiguration"
+                                    ],
+                                    "Resource": "*"
+                                },
+                                {
+                                      "Sid": "ListAndDescribe",
+                                      "Effect": "Allow",
+                                      "Action": [
+                                          "dynamodb:List*",
+                                          "dynamodb:DescribeReservedCapacity*",
+                                          "dynamodb:DescribeLimits",
+                                          "dynamodb:DescribeTimeToLive"
+                                      ],
+                                      "Resource": "*"
+                                  },
+                                  {
+                                      "Sid": "SpecificTable",
+                                      "Effect": "Allow",
+                                      "Action": [
+                                          "dynamodb:BatchGet*",
+                                          "dynamodb:DescribeStream",
+                                          "dynamodb:DescribeTable",
+                                          "dynamodb:Get*",
+                                          "dynamodb:Query",
+                                          "dynamodb:Scan",
+                                          "dynamodb:BatchWrite*",
+                                          "dynamodb:CreateTable",
+                                          "dynamodb:Delete*",
+                                          "dynamodb:Update*",
+                                          "dynamodb:PutItem"
+                                      ],
+                                      "Resource": "arn:aws:dynamodb:*:*:table/*"
+                                  }
+                            ]
+                        }
+                    }
+                ]
+            },
+            "Type": "AWS::IAM::Role",
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "0c952ca4-a310-4b2e-9584-50728901c7b9"
+                }
+            }
+        },
+        "scheduledEvent": {
+            "Properties": {
+                "Description": "CloudWatch event to trigger lambda SG function",
+                "ScheduleExpression": "rate(5 minutes)",
+                "State": "ENABLED",
+                "Targets": [
+                    {
+                        "Arn": {
+                            "Fn::GetAtt": [
+                                "SampleTransactionGenerator",
+                                "Arn"
+                            ]
+                        },
+                        "Id": "LambdaTarget"
+                    }
+                ]
+            },
+            "Type": "AWS::Events::Rule",
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "4b792e10-e7b2-43f4-81a8-a3a115a3cbb0"
+                }
+            }
+        },
+        "LambdaInvokePermission": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "SampleTransactionGenerator",
+                        "Arn"
+                    ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "events.amazonaws.com",
+                "SourceArn": {
+                    "Fn::GetAtt": [
+                        "scheduledEvent",
+                        "Arn"
+                    ]
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "33e70d43-a4ee-4117-baf0-d3286769c317"
+                }
+            }
+        },
+        "SampleTransactionGenerator": {
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "BucketName"
+                    },
+                    "S3Key": "lambda-functions.zip"
+                },
+                "Handler": "SampleTransactionGenerator.lambda_handler",
+                "MemorySize": 128,
+                "Role": {
+                    "Fn::GetAtt": [
+                        "kfpLambdaServiceExecutionRole",
+                        "Arn"
+                    ]
+                },
+                "Environment": {
+                    "Variables": {
+                        "kafka_topic": "demo_transactions",
+                        "mskClusterArn": {
+                            "Ref": "MSKCluster"
+                        }
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": 300,
+                "VpcConfig": {
+                    "SecurityGroupIds": [
+                        {
+                            "Fn::GetAtt": [
+                                "SolnVPC",
+                                "DefaultSecurityGroup"
+                            ]
+                        }
+                    ],
+                    "SubnetIds": [
+                        {
+                            "Ref": "privateSubnet1"
+                        },
+                        {
+                            "Ref": "privateSubnet2"
+                        }
+                    ]
+                }
+            },
+            "Type": "AWS::Lambda::Function",
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "5b95700e-ca94-4aa8-8e58-9713a7964bb6"
+                }
+            }
+        },
+        "FlagAccountGenerator": {
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "BucketName"
+                    },
+                    "S3Key": "lambda-functions.zip"
+                },
+                "Handler": "FlagAccountGenerator.lambda_handler",
+                "MemorySize": 128,
+                "Role": {
+                    "Fn::GetAtt": [
+                        "kfpLambdaServiceExecutionRole",
+                        "Arn"
+                    ]
+                },
+                "Environment": {
+                    "Variables": {
+                        "kafka_topic": "flagged_customers",
+                        "mskClusterArn": {
+                            "Ref": "MSKCluster"
+                        }
+                    }
+                },
+                "Runtime": "python3.6",
+                "Timeout": 300,
+                "VpcConfig": {
+                    "SecurityGroupIds": [
+                        {
+                            "Fn::GetAtt": [
+                                "SolnVPC",
+                                "DefaultSecurityGroup"
+                            ]
+                        }
+                    ],
+                    "SubnetIds": [
+                        {
+                            "Ref": "privateSubnet1"
+                        },
+                        {
+                            "Ref": "privateSubnet2"
+                        }
+                    ]
+                }
+            },
+            "Type": "AWS::Lambda::Function",
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "5b95700e-ca94-4aa8-8e58-9713a7964bb6"
+                }
+            }
+        },
+        "DynamodbConsumer": {
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "BucketName"
+                    },
+                    "S3Key": "lambda-functions.zip"
+                },
+                "Handler": "DynamodbConsumer.lambda_handler",
+                "MemorySize": 128,
+                "Role": {
+                    "Fn::GetAtt": [
+                        "kfpLambdaServiceExecutionRole",
+                        "Arn"
+                    ]
+                },
+                "Environment": {
+                    "Variables": {
+                        "dynamodb_table": "fraud_audit_table"
+                        }
+                },
+                "Runtime": "python3.6",
+                "Timeout": 300
+            },
+            "Type": "AWS::Lambda::Function",
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "aad33183-d2ed-4e8c-994a-b39ac9d6fbda"
+                }
+            }
+        },
+        "EventSourceMappingDynamo": {
+            "Type": "AWS::Lambda::EventSourceMapping",
+            "Properties": {
+                "Enabled": true,
+                "EventSourceArn": {
+                    "Ref": "MSKCluster"
+                },
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "DynamodbConsumer",
+                        "Arn"
+                    ]
+                },
+                "StartingPosition": "TRIM_HORIZON",
+                "Topics": [
+                    "processed_topic"
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "a7ea673f-90bc-4b3b-be99-2d5ea65506e2"
+                }
+            }
+        },
+        "MSKConfigLambda": {
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "BucketName"
+                    },
+                    "S3Key": "lambda-functions.zip"
+                },
+                "Handler": "CustomMSKConfig.lambda_handler",
+                "MemorySize": 128,
+                "Role": {
+                    "Fn::GetAtt": [
+                        "kfpLambdaServiceExecutionRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "python3.6",
+                "Timeout": 300
+            },
+            "Type": "AWS::Lambda::Function",
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "17ee1644-e8b6-4853-b262-95f985d42a43"
+                }
+            }
+        },
+        "MSKConfig": {
+            "Type": "AWS::CloudFormation::CustomResource",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "MSKConfigLambda",
+                        "Arn"
+                    ]
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "7e63c7c8-5a87-414d-9929-435497795798"
+                }
+            }
+        },
+        "MSKCluster": {
+            "Type": "AWS::MSK::Cluster",
+            "Properties": {
+                "ClusterName": {
+                    "Fn::Sub": "${AWS::StackName}"
+                },
+                "KafkaVersion": "2.2.1",
+                "NumberOfBrokerNodes": 2,
+                "EncryptionInfo": {
+                    "EncryptionInTransit": {
+                        "ClientBroker": "PLAINTEXT"
+                    }
+                },
+                "BrokerNodeGroupInfo": {
+                    "InstanceType": "kafka.m5.large",
+                    "ClientSubnets": [
+                        {
+                            "Ref": "privateSubnet1"
+                        },
+                        {
+                            "Ref": "privateSubnet2"
+                        }
+                    ]
+                },
+                "ConfigurationInfo": {
+                    "Arn": {
+                        "Fn::GetAtt": [
+                            "MSKConfig",
+                            "Arn"
+                        ]
+                    },
+                    "Revision": {
+                        "Fn::GetAtt": [
+                            "MSKConfig",
+                            "Revision"
+                        ]
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "38ea730f-60e0-4efd-a0a4-f0eb793dc026"
+                }
+            }
+        },
+        "KDAFlinkLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "e1d9d53a-30a5-46e5-a925-9d84f7fd7826"
+                }
+            }
+        },
+        "KDAFlinkLogStream": {
+            "Type": "AWS::Logs::LogStream",
+            "Properties": {
+                "LogGroupName": {
+                    "Ref": "KDAFlinkLogGroup"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "70c3f921-ccfa-4b7c-a6fe-11f7475e663c"
+                }
+            }
+        },
+        "KinesisAnalyticsRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "kinesisanalytics.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "KinesisAnalyticsRolePolicy",
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:GetObject",
+                                        "s3:GetObjectVersion"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Sub": "arn:aws:s3:::${BucketName}/PythonKafkaSink.zip"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:DescribeLogGroups"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:DescribeLogStreams"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${KDAFlinkLogGroup}:log-stream:*"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${KDAFlinkLogGroup}:log-stream:${KDAFlinkLogStream}"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ec2:DescribeVpcs",
+                                        "ec2:DescribeSubnets",
+                                        "ec2:DescribeSecurityGroups",
+                                        "ec2:DescribeDhcpOptions",
+                                        "ec2:CreateNetworkInterface",
+                                        "ec2:CreateNetworkInterfacePermission",
+                                        "ec2:DescribeNetworkInterfaces",
+                                        "ec2:DeleteNetworkInterface"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "86bd032b-8797-4fbd-b6cd-39a272cd6e7d"
+                }
+            }
+        },
+        "KDAFlinkApplication": {
+            "Type": "AWS::KinesisAnalyticsV2::Application",
+            "Properties": {
+                "RuntimeEnvironment": "FLINK-1_11",
+                "ServiceExecutionRole": {
+                    "Fn::GetAtt": [
+                        "KinesisAnalyticsRole",
+                        "Arn"
+                    ]
+                },
+                "ApplicationConfiguration": {
+                    "ApplicationCodeConfiguration": {
+                        "CodeContent": {
+                            "S3ContentLocation": {
+                                "BucketARN": {
+                                    "Fn::Sub": "arn:aws:s3:::${BucketName}"
+                                },
+                                "FileKey": "PythonKafkaSink.zip"
+                            }
+                        },
+                        "CodeContentType": "ZIPFILE"
+                    },
+                    "EnvironmentProperties": {
+                        "PropertyGroups": [
+                            {
+                                "PropertyGroupId": "kinesis.analytics.flink.run.options",
+                                "PropertyMap": {
+                                    "python": "PythonKafkaSink/main.py",
+                                    "jarfile": "PythonKafkaSink/lib/flink-sql-connector-kafka_2.11-1.11.2.jar"
+                                }
+                            },
+                            {
+                                "PropertyGroupId": "producer.config.0",
+                                "PropertyMap": {
+                                    "input.topic.name": "demo_transactions",
+                                    "input.topic2.name": "flagged_customers",
+                                    "bootstrap.servers": "...replace msk brokers list here"
+                                }
+                            },
+                            {
+                                "PropertyGroupId": "consumer.config.0",
+                                "PropertyMap": {
+                                    "output.topic.name": "processed_topic"
+                                }
+                            }
+                        ]
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "14c0e71d-4a74-4778-81cb-bdf0a58c6984"
+                }
+            }
+        },
+        "KDAFlinkAppCloudwatch": {
+            "Type": "AWS::KinesisAnalyticsV2::ApplicationCloudWatchLoggingOption",
+            "Properties": {
+                "ApplicationName": {
+                    "Ref": "KDAFlinkApplication"
+                },
+                "CloudWatchLoggingOption": {
+                    "LogStreamARN": {
+                        "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${KDAFlinkLogGroup}:log-stream:${KDAFlinkLogStream}"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "ce7902da-ce02-43f1-a3a4-eb62fa601456"
+                }
+            }
+        },
+        "MyDynamoDBTable" : {
+          "Type" : "AWS::DynamoDB::Table",
+          "Properties" : {
+            "AttributeDefinitions" : [
+              {
+                "AttributeName" : "Account_Id",
+                "AttributeType" : "N"
+              },
+              {
+                "AttributeName" : "Transaction_Id",
+                "AttributeType" : "S"
+              }
+            ],
+            "KeySchema" : [
+              {
+                "AttributeName" : "Account_Id",
+                "KeyType" : "HASH"
+              },
+              {
+                "AttributeName" : "Transaction_Id",
+                "KeyType" : "RANGE"
+              }
+            ],
+            "ProvisionedThroughput" : {
+              "ReadCapacityUnits" : "5",
+              "WriteCapacityUnits" : "5"
+            },
+            "TableName" : "fraud_audit_table"
+          }
+        },
+        "SGBaseIngress": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": { "Fn::GetAtt" : ["SolnVPC", "DefaultSecurityGroup"] },
+                "IpProtocol": "tcp",
+                "FromPort": 22,
+                "ToPort": 22,
+                "CidrIp":{
+                    "Ref": "SourceIPAddr"
+                }
+            }
+        },
+        "SGBaseIngress1": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": { "Fn::GetAtt" : ["SolnVPC", "DefaultSecurityGroup"] },
+                "IpProtocol": "tcp",
+                "FromPort": 9000,
+                "ToPort": 9000,
+                "CidrIp":{
+                    "Ref": "SourceIPAddr"
+                }
+            }
+        },
+        "ClientEC2Instance": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+              "ImageId": {
+                  "Ref": "ImageId"
+              },
+                "InstanceType": "t3.micro",
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "SubnetId": {
+                    "Ref": "publicSubnet1"
+                },
+                "SecurityGroupIds": [
+                    {
+                      "Fn::GetAtt": [
+                          "SolnVPC",
+                          "DefaultSecurityGroup"
+                      ]
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        }
+                    }
+                ],
+                "UserData": {
+                  "Fn::Base64": {
+                      "Fn::Sub": "\n#!/bin/bash\n\n\n\nsudo yum update -y\n\n\n\nsudo yum install docker -y\n\n\n\nsudo yum install java-1.8.0-openjdk-devel -y\n\n\n\nsudo systemctl start docker\n\n\n\ngpasswd -a ec2-user docker\n\n\n\ncd /home/ec2-user\n\n\n\necho \"export PATH=.local/bin:$PATH\" >> .bash_profile\n\n\n\ndocker pull obsidiandynamics/kafdrop\n\n\n\nchgrp -R ec2-user ./mm\n"
+                  }
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "FlinkApp": {
+            "Description": "Flink application URL",
+            "Value": {
+                "Fn::Sub": "https://${AWS::Region}.console.aws.amazon.com/kinesisanalytics/home?region=${AWS::Region}#/details?applicationName=${KDAFlinkApplication}"
+            }
+        },
+        "LambdaFunctions": {
+            "Description": "Lambda Functions URL",
+            "Value": {
+                "Fn::Sub": "https://${AWS::Region}.console.aws.amazon.com/lambda/home?region=${AWS::Region}#/functions"
+            }
+        },
+        "DynamoDB": {
+            "Description": "DynamoDB Table URL",
+            "Value": {
+                "Fn::Sub": "https://${AWS::Region}.console.aws.amazon.com/dynamodb/home?region=${AWS::Region}#tables:selected=${MyDynamoDBTable};tab=overview"
+            }
+        },
+        "EC2Client": {
+            "Description": "EC2 Linux Client URL",
+            "Value": {
+                "Fn::Sub": "https://${AWS::Region}.console.aws.amazon.com/ec2/v2/home?region=${AWS::Region}#Instances:"
+            }
+        },
+        "MSKConsole": {
+            "Description": "MSK clusters Link",
+            "Value": {
+                "Fn::Sub": [
+                    "https://${AWS::Region}.console.aws.amazon.com/msk/home?region=${AWS::Region}#/cluster/${joinedArn}/view?tabId=details",
+                    {
+                        "joinedArn": {
+                            "Fn::Join": [
+                                "%2F",
+                                {
+                                    "Fn::Split": [
+                                        "/",
+                                        {
+                                            "Fn::Join": [
+                                                "%3A",
+                                                {
+                                                    "Fn::Split": [
+                                                        ":",
+                                                        {
+                                                            "Ref": "MSKCluster"
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "Metadata": {
+        "AWS::CloudFormation::Designer": {
+            "86bd032b-8797-4fbd-b6cd-39a272cd6e7d": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 900,
+                    "y": 90
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "e1d9d53a-30a5-46e5-a925-9d84f7fd7826": {
+                "size": {
+                    "width": 240,
+                    "height": 240
+                },
+                "position": {
+                    "x": 60,
+                    "y": 840
+                },
+                "z": 1,
+                "embeds": [
+                    "70c3f921-ccfa-4b7c-a6fe-11f7475e663c"
+                ]
+            },
+            "70c3f921-ccfa-4b7c-a6fe-11f7475e663c": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 90,
+                    "y": 900
+                },
+                "z": 2,
+                "parent": "e1d9d53a-30a5-46e5-a925-9d84f7fd7826",
+                "embeds": [],
+                "iscontainedinside": [
+                    "e1d9d53a-30a5-46e5-a925-9d84f7fd7826",
+                    "e1d9d53a-30a5-46e5-a925-9d84f7fd7826"
+                ]
+            },
+            "0c952ca4-a310-4b2e-9584-50728901c7b9": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 900,
+                    "y": 210
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "17ee1644-e8b6-4853-b262-95f985d42a43": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 1020,
+                    "y": 210
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "7e63c7c8-5a87-414d-9929-435497795798": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 900,
+                    "y": 330
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "aad33183-d2ed-4e8c-994a-b39ac9d6fbda": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 1020,
+                    "y": 330
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "fc9d1c20-4f96-4e6b-bf84-577cd96d1c4f": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 900,
+                    "y": 450
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "f4e01756-4108-465c-abdf-fafc19ecaadc": {
+                "size": {
+                    "width": 780,
+                    "height": 690
+                },
+                "position": {
+                    "x": 60,
+                    "y": 90
+                },
+                "z": 1,
+                "embeds": [
+                    "0eec2148-ba38-4329-bc6f-ae2c20102e01",
+                    "75119e8a-4fc1-4982-a175-021e814b631e",
+                    "d2808420-18a4-499f-b6a3-961f2f36afee",
+                    "e0cec8bb-e934-4e24-bfa0-9f1a07ece8f5",
+                    "531001a0-2ff0-4eca-abfd-5688f8a7deeb"
+                ]
+            },
+            "0eec2148-ba38-4329-bc6f-ae2c20102e01": {
+                "size": {
+                    "width": 240,
+                    "height": 240
+                },
+                "position": {
+                    "x": 90,
+                    "y": 450
+                },
+                "z": 2,
+                "parent": "f4e01756-4108-465c-abdf-fafc19ecaadc",
+                "embeds": [
+                    "e43a5ddf-7a3b-4f7e-9720-50498093fe61"
+                ],
+                "iscontainedinside": [
+                    "f4e01756-4108-465c-abdf-fafc19ecaadc",
+                    "f4e01756-4108-465c-abdf-fafc19ecaadc"
+                ]
+            },
+            "9498fb84-0c65-49ad-b082-79d8109c5b40": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 1020,
+                    "y": 450
+                },
+                "z": 1,
+                "embeds": [],
+                "dependson": [
+                    "f4e01756-4108-465c-abdf-fafc19ecaadc"
+                ]
+            },
+            "75119e8a-4fc1-4982-a175-021e814b631e": {
+                "size": {
+                    "width": 240,
+                    "height": 240
+                },
+                "position": {
+                    "x": 390,
+                    "y": 150
+                },
+                "z": 2,
+                "parent": "f4e01756-4108-465c-abdf-fafc19ecaadc",
+                "embeds": [
+                    "71efd6b6-9934-465d-93d9-d7a3e3402a31"
+                ],
+                "iscontainedinside": [
+                    "f4e01756-4108-465c-abdf-fafc19ecaadc",
+                    "f4e01756-4108-465c-abdf-fafc19ecaadc"
+                ]
+            },
+            "32e02de3-3c0a-42c0-af61-632ce9f11c1a": {
+                "source": {
+                    "id": "f4e01756-4108-465c-abdf-fafc19ecaadc"
+                },
+                "target": {
+                    "id": "fc9d1c20-4f96-4e6b-bf84-577cd96d1c4f"
+                },
+                "z": 1
+            },
+            "71efd6b6-9934-465d-93d9-d7a3e3402a31": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 420,
+                    "y": 210
+                },
+                "z": 3,
+                "parent": "75119e8a-4fc1-4982-a175-021e814b631e",
+                "embeds": [],
+                "isassociatedwith": [
+                    "fc9d1c20-4f96-4e6b-bf84-577cd96d1c4f"
+                ],
+                "iscontainedinside": [
+                    "75119e8a-4fc1-4982-a175-021e814b631e",
+                    "75119e8a-4fc1-4982-a175-021e814b631e"
+                ],
+                "dependson": [
+                    "32e02de3-3c0a-42c0-af61-632ce9f11c1a"
+                ]
+            },
+            "d2808420-18a4-499f-b6a3-961f2f36afee": {
+                "size": {
+                    "width": 150,
+                    "height": 150
+                },
+                "position": {
+                    "x": 600,
+                    "y": 450
+                },
+                "z": 2,
+                "parent": "f4e01756-4108-465c-abdf-fafc19ecaadc",
+                "embeds": [],
+                "iscontainedinside": [
+                    "f4e01756-4108-465c-abdf-fafc19ecaadc",
+                    "f4e01756-4108-465c-abdf-fafc19ecaadc"
+                ]
+            },
+            "c1eea9ef-310f-4188-9dcf-bddb45cf66a6": {
+                "source": {
+                    "id": "0eec2148-ba38-4329-bc6f-ae2c20102e01"
+                },
+                "target": {
+                    "id": "d2808420-18a4-499f-b6a3-961f2f36afee"
+                },
+                "z": 2
+            },
+            "e0cec8bb-e934-4e24-bfa0-9f1a07ece8f5": {
+                "size": {
+                    "width": 150,
+                    "height": 150
+                },
+                "position": {
+                    "x": 390,
+                    "y": 450
+                },
+                "z": 2,
+                "parent": "f4e01756-4108-465c-abdf-fafc19ecaadc",
+                "embeds": [],
+                "iscontainedinside": [
+                    "f4e01756-4108-465c-abdf-fafc19ecaadc",
+                    "f4e01756-4108-465c-abdf-fafc19ecaadc"
+                ]
+            },
+            "38ea730f-60e0-4efd-a0a4-f0eb793dc026": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 900,
+                    "y": 570
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "a7ea673f-90bc-4b3b-be99-2d5ea65506e2": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 1020,
+                    "y": 570
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "5b95700e-ca94-4aa8-8e58-9713a7964bb6": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 900,
+                    "y": 690
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "4b792e10-e7b2-43f4-81a8-a3a115a3cbb0": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 1020,
+                    "y": 690
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "33e70d43-a4ee-4117-baf0-d3286769c317": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 900,
+                    "y": 810
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "5b95700e-ca94-4aa8-8e58-9713a7964bb6"
+                ]
+            },
+            "38f0f150-cf9c-4d23-86ab-7a8b1715ebfc": {
+                "source": {
+                    "id": "0eec2148-ba38-4329-bc6f-ae2c20102e01"
+                },
+                "target": {
+                    "id": "e0cec8bb-e934-4e24-bfa0-9f1a07ece8f5"
+                },
+                "z": 2
+            },
+            "531001a0-2ff0-4eca-abfd-5688f8a7deeb": {
+                "size": {
+                    "width": 240,
+                    "height": 240
+                },
+                "position": {
+                    "x": 90,
+                    "y": 150
+                },
+                "z": 2,
+                "parent": "f4e01756-4108-465c-abdf-fafc19ecaadc",
+                "embeds": [
+                    "18a35f22-58f5-45ba-880e-e362b8f3439d"
+                ],
+                "iscontainedinside": [
+                    "f4e01756-4108-465c-abdf-fafc19ecaadc",
+                    "f4e01756-4108-465c-abdf-fafc19ecaadc"
+                ]
+            },
+            "18a35f22-58f5-45ba-880e-e362b8f3439d": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 120,
+                    "y": 210
+                },
+                "z": 3,
+                "parent": "531001a0-2ff0-4eca-abfd-5688f8a7deeb",
+                "embeds": [],
+                "iscontainedinside": [
+                    "531001a0-2ff0-4eca-abfd-5688f8a7deeb",
+                    "531001a0-2ff0-4eca-abfd-5688f8a7deeb"
+                ]
+            },
+            "e43a5ddf-7a3b-4f7e-9720-50498093fe61": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 120,
+                    "y": 510
+                },
+                "z": 3,
+                "parent": "0eec2148-ba38-4329-bc6f-ae2c20102e01",
+                "embeds": [],
+                "isassociatedwith": [
+                    "18a35f22-58f5-45ba-880e-e362b8f3439d"
+                ],
+                "iscontainedinside": [
+                    "0eec2148-ba38-4329-bc6f-ae2c20102e01",
+                    "0eec2148-ba38-4329-bc6f-ae2c20102e01"
+                ]
+            },
+            "24f852c6-5846-472c-9bec-f8e3c956b30e": {
+                "source": {
+                    "id": "75119e8a-4fc1-4982-a175-021e814b631e"
+                },
+                "target": {
+                    "id": "531001a0-2ff0-4eca-abfd-5688f8a7deeb"
+                },
+                "z": 2
+            },
+            "14c0e71d-4a74-4778-81cb-bdf0a58c6984": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 360,
+                    "y": 840
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "ce7902da-ce02-43f1-a3a4-eb62fa601456": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 480,
+                    "y": 840
+                },
+                "z": 1,
+                "embeds": []
+            }
+        }
+    }
+}
